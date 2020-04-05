@@ -1,5 +1,7 @@
 # TODO
 
+- fix focusRoomAtIndex
+
 ## Refactoring
 
 - Rewrite account settings using `HTabbedContainer`

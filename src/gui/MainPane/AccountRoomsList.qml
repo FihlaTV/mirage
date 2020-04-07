@@ -1,68 +1,54 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 import QtQuick 2.12
+import Qt.labs.qmlmodels 1.0
+import SortFilterProxyModel 0.2
 import ".."
 import "../Base"
 
 HListView {
     id: mainPaneList
-    model: ModelStore.get("accounts")
     spacing: mainPane.small ? theme.spacing : 0
 
-    delegate: AccountRoomsDelegate {
-        width: mainPaneList.width
-        height: childrenRect.height
+    model: ModelStore.get("account_rooms")
+    // model: HSortFilterProxyModel {
+    //     sourceModel: ModelStore.get("account_rooms")
+
+    //     filters: [
+    //         ExpressionFilter {
+    //             enabled: ! mainPane.filter
+    //             expression:
+    //                 model.type === "Account" ||
+    //                 ! window.uiState.collapseAccounts[model.for_account]
+    //         },
+
+    //         ExpressionFilter {
+    //             expression:
+    //                 model.type === "Account" ||
+    //                 utils.filterMatches(mainPane.filter, model.display_name)
+    //         }
+    //     ]
+    // }
+
+    delegate: DelegateChooser {
+        role: "type"
+
+        DelegateChoice {
+            roleValue: "Account"
+            Account { width: mainPaneList.width }
+        }
+
+        DelegateChoice {
+            roleValue: "Room"
+            Room { width: mainPaneList.width }
+        }
     }
 
-    // Must handle the highlight's position and size manually because
-    // of our nested lists
-    highlightFollowsCurrentItem: false
-    highlightRangeMode: ListView.NoHighlightRange
-
     highlight: Rectangle {
-        id: highlightRectangle
-        y:
-            ! currentItem ?
-            0 :
-
-            selectedRoom ?
-            currentItem.y + currentItem.account.height +
-            currentItem.roomList.currentItem.y :
-
-            currentItem.y
-
-        width: mainPaneList.width
-        height:
-            ! currentItem ?
-            0 :
-
-            selectedRoom ?
-            currentItem.roomList.currentItem.height :
-            currentItem.account.height
-
         color:
             mainPane.small ?
             theme.controls.listView.smallPaneHighlight :
             theme.controls.listView.highlight
-
-        Behavior on y { HNumberAnimation { id: yAnimation } }
-        Behavior on height { HNumberAnimation {} }
-        Behavior on color { HColorAnimation {} }
-
-        Binding {
-            target: mainPaneList
-            property: "contentY"
-            value: highlightRectangle.y + highlightRectangle.height / 2 -
-                   mainPaneList.height / 2
-            delayed: true
-            when: centerToHighlight && yAnimation.running
-        }
-
-        Connections {
-            target: mainPaneList
-            enabled: centerToHighlight && yAnimation.running
-            onContentYChanged: mainPaneList.returnToBounds()
-        }
     }
 
     onMovingChanged: if (moving) centerToHighlight = false
@@ -72,7 +58,8 @@ HListView {
     property bool centerToHighlight: true
 
     readonly property HLoader selectedRoom:
-        currentItem ? currentItem.roomList.currentItem : null
+        null
+        // currentItem ? currentItem.roomList.currentItem : null
 
     readonly property bool hasActiveAccount:
         window.uiState.page === "Pages/Chat/Chat.qml" ||

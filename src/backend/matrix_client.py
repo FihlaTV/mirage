@@ -1171,6 +1171,7 @@ class MatrixClient(nio.AsyncClient):
 
         self.models[self.user_id, "rooms"][room.room_id] = Room(
             id             = room.room_id,
+            for_account    = self.user_id,
             given_name     = room.name or "",
             display_name   = room.display_name or "",
             avatar_url     = room.gen_avatar_url or "",

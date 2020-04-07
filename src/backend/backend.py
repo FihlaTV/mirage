@@ -7,14 +7,16 @@ import traceback
 from pathlib import Path
 from typing import Any, DefaultDict, Dict, List, Optional
 
-import nio
 from appdirs import AppDirs
+
+import nio
 
 from . import __app_name__
 from .errors import MatrixError
 from .matrix_client import MatrixClient
 from .media_cache import MediaCache
 from .models import SyncId
+from .models.aggregators import AccountRooms
 from .models.items import Account
 from .models.model_store import ModelStore
 from .user_files import Accounts, History, Theme, UISettings, UIState
@@ -77,8 +79,9 @@ class Backend:
         self.ui_state:       UIState    = UIState(self)
         self.history:        History    = History(self)
 
-        self.models:  ModelStore              = ModelStore()
-        self.clients: Dict[str, MatrixClient] = {}
+        self.account_rooms: AccountRooms            = AccountRooms(self)
+        self.models:        ModelStore              = ModelStore()
+        self.clients:       Dict[str, MatrixClient] = {}
 
         self.profile_cache: Dict[str, nio.ProfileGetResponse] = {}
         self.get_profile_locks: DefaultDict[str, asyncio.Lock] = \

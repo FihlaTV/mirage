@@ -49,30 +49,28 @@ QtObject {
     }
 
 
-    function onModelItemSet(syncId, indexThen, indexNow, changedFields){
+    function onModelItemSet(syncId, indexThen, indexNow, fields){
         if (indexThen === undefined) {
-            print("insert", syncId, indexThen, indexNow,
-                  JSON.stringify(changedFields))
-            ModelStore.get(syncId).insert(indexNow, changedFields)
+            // print("I", syncId, indexThen, indexNow, JSON.stringify(fields))
+            ModelStore.get(syncId).insert(indexNow, fields)
 
         } else {
-            print("set", syncId, indexThen, indexNow,
-                  JSON.stringify(changedFields))
+            // print("S", syncId, indexThen, indexNow, JSON.stringify(fields))
             const model = ModelStore.get(syncId)
-            model.set(indexThen, changedFields)
+            model.set(indexThen, fields)
             if (indexThen !== indexNow) model.move(indexThen, indexNow, 1)
         }
     }
 
 
     function onModelItemDeleted(syncId, index) {
-        // print("delete", syncId, index)
+        // print("D", syncId, index)
         ModelStore.get(syncId).remove(index)
     }
 
 
     function onModelCleared(syncId) {
-        // print("clear", syncId)
+        // print("C", syncId)
         ModelStore.get(syncId).clear()
     }
 }

@@ -13,6 +13,7 @@ from . import SyncId
 
 if TYPE_CHECKING:
     from .model_item import ModelItem
+    from .aggregators import ModelProxy  # noqa
 
 
 class Model(MutableMapping):
@@ -28,6 +29,9 @@ class Model(MutableMapping):
 
     Items in the model are kept sorted using the `ModelItem` subclass `__lt__`.
     """
+
+    proxies: Dict[SyncId, "ModelProxy"] = {}
+
 
     def __init__(self, sync_id: Optional[SyncId]) -> None:
         self.sync_id:      Optional[SyncId]       = sync_id
@@ -58,23 +62,30 @@ class Model(MutableMapping):
         return self._data[key]
 
 
-    def __setitem__(self, key, value: "ModelItem") -> None:
+    def __setitem__(
+        self,
+        key,
+        value:           "ModelItem",
+        _changed_fields: Optional[Dict[str, Any]] = None,
+    ) -> None:
         with self._write_lock:
             existing = self._data.get(key)
             new      = value
 
             # Collect changed fields
 
-            changed_fields = {}
+            changed_fields = _changed_fields or {}
 
-            for field in new.__dataclass_fields__:  # type: ignore
-                changed = True
+            if not changed_fields:
+                for field in new.__dataclass_fields__:  # type: ignore
+                    changed = True
 
-                if existing:
-                    changed = getattr(new, field) != getattr(existing, field)
+                    if existing:
+                        changed = \
+                            getattr(new, field) != getattr(existing, field)
 
-                if changed:
-                    changed_fields[field] = new.serialize_field(field)
+                    if changed and new.can_serialize_field(field):
+                        changed_fields[field] = new.serialize_field(field)
 
             # Set parent model on new item
 
@@ -96,6 +107,12 @@ class Model(MutableMapping):
 
             self._data[key] = new
 
+            # Callbacks
+
+            for sync_id, proxy in self.proxies.items():
+                if sync_id != self.sync_id:
+                    proxy.source_item_set(self, key, value)
+
             # Emit PyOtherSide event
 
             if self.sync_id and (index_then != index_now or changed_fields):
@@ -112,6 +129,10 @@ class Model(MutableMapping):
 
             index = self._sorted_data.index(item)
             del self._sorted_data[index]
+
+            for sync_id, proxy in self.proxies.items():
+                if sync_id != self.sync_id:
+                    proxy.source_item_deleted(self, key)
 
             if self.sync_id:
                 ModelItemDeleted(self.sync_id, index)
@@ -132,6 +153,11 @@ class Model(MutableMapping):
 
     def clear(self) -> None:
         super().clear()
+
+        for sync_id, proxy in self.proxies.items():
+            if sync_id != self.sync_id:
+                proxy.source_cleared(self)
+
         if self.sync_id:
             ModelCleared(self.sync_id)
 

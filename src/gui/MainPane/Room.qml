@@ -142,7 +142,7 @@ HTileDelegate {
 
             popup: "Popups/InviteToRoomPopup.qml"
             properties: ({
-                userId: userId,
+                userId: model.for_account,
                 roomId: model.id,
                 roomName: model.display_name,
                 invitingAllowed: Qt.binding(() => model.can_invite)
@@ -165,7 +165,7 @@ HTileDelegate {
             label.textFormat: Text.StyledText
 
             onTriggered: py.callClientCoro(
-                userId, "join", [model.id]
+                model.for_account, "join", [model.id]
             )
         }
 
@@ -177,7 +177,7 @@ HTileDelegate {
 
             popup: "Popups/LeaveRoomPopup.qml"
             properties: ({
-                userId: userId,
+                userId: model.for_account,
                 roomId: model.id,
                 roomName: model.display_name,
             })
@@ -191,7 +191,7 @@ HTileDelegate {
             popup: "Popups/ForgetRoomPopup.qml"
             autoDestruct: false
             properties: ({
-                userId: userId,
+                userId: model.for_account,
                 roomId: model.id,
                 roomName: model.display_name,
             })
@@ -199,21 +199,18 @@ HTileDelegate {
     }
 
     onActivated: {
-        pageLoader.showRoom(userId, model.id)
+        pageLoader.showRoom(model.for_account, model.id)
         mainPaneList.detachedCurrentIndex = false
         mainPaneList.centerToHighlight    = false
     }
 
-
-    property string userId
-    property QtObject model
 
     readonly property bool joined: ! invited && ! parted
     readonly property bool invited: model.inviter_id && ! parted
     readonly property bool parted: model.left
 
     readonly property ListModel eventModel:
-        ModelStore.get(userId, model.id, "events")
+        ModelStore.get(model.for_account, model.id, "events")
 
     readonly property QtObject lastEvent:
         eventModel.count > 0 ? eventModel.get(0) : null

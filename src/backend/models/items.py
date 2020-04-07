@@ -6,18 +6,26 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 from uuid import UUID
 
 import lxml  # nosec
+
 import nio
 
 from ..utils import AutoStrEnum, auto
 from .model_item import ModelItem
 
+if TYPE_CHECKING:
+    from ..backend import Backend
+
 ZeroDate              = datetime.fromtimestamp(0)
 OptionalExceptionType = Union[Type[None], Type[Exception]]
 
+
+class NoRoom:
+    def __lt__(self, other: Union["Room", "NoRoom"]) -> bool:
+        return True
 
 
 class TypeSpecifier(AutoStrEnum):
@@ -26,6 +34,74 @@ class TypeSpecifier(AutoStrEnum):
     Unset            = auto()
     ProfileChange    = auto()
     MembershipChange = auto()
+
+
+@dataclass
+class AccountOrRoom(ModelItem):
+    _account: "Account"        = field()
+    _room:    Optional["Room"] = field()
+
+    # Common fields
+    id:           str = field()
+    type:         str = field()
+    display_name: str = ""
+    avatar_url:   str = ""
+
+    # Account fields
+    profile_updated: datetime = ZeroDate
+    first_sync_done: bool     = False
+
+    # Room fields
+    for_account:     str      = ""
+    inviter_id:      str      = ""
+    inviter_name:    str      = ""
+    left:            bool     = False
+    last_event_date: datetime = ZeroDate
+    mentions:        int      = 0
+
+    @classmethod
+    def from_item(
+        cls, item: Union["Account", "Room"], backend: "Backend",
+    ) -> "AccountOrRoom":
+
+        common_fields: Dict[str, Any] = {
+            "id":           item.id,
+            "display_name": item.display_name,
+            "avatar_url":   item.avatar_url,
+        }
+
+        if isinstance(item, Account):
+            return cls(
+                _account        = item,
+                _room           = None,
+                type            = type(item).__name__,
+                profile_updated = item.profile_updated,
+                first_sync_done = item.first_sync_done,
+                **common_fields,
+            )
+        else:
+            return cls(
+                _account        = backend.models["accounts"][item.for_account],
+                _room           = item,
+                type            = type(item).__name__,
+                for_account     = item.for_account,
+                inviter_id      = item.inviter_id,
+                inviter_name    = item.inviter_name,
+                left            = item.left,
+                last_event_date = item.last_event_date,
+                mentions        = item.mentions,
+                **common_fields,
+            )
+
+
+    def __lt__(self, other: "AccountOrRoom") -> bool:
+        return (
+            self._account,
+            self._room or NoRoom(),
+        ) < (
+            other._account,
+            other._room or NoRoom(),
+        )
 
 
 @dataclass
@@ -51,6 +127,7 @@ class Room(ModelItem):
     """A matrix room we are invited to, are or were member of."""
 
     id:             str  = field()
+    for_account:    str  = field()
     given_name:     str  = ""
     display_name:   str  = ""
     main_alias:     str  = ""
@@ -83,7 +160,7 @@ class Room(ModelItem):
 
     mentions: int = 0
 
-    def __lt__(self, other: "Room") -> bool:
+    def __lt__(self, other: Union["Room", NoRoom]) -> bool:
         """Sort by join state, then descending last event date, then name.
 
         Invited rooms are first, then joined rooms, then left rooms.
@@ -91,8 +168,11 @@ class Room(ModelItem):
         messages are first), then by display names.
         """
 
-        # Left rooms may still have an inviter_id, so check left first.
+        if isinstance(other, NoRoom):
+            return False
+
         return (
+            # Left rooms may still have an inviter_id, so check left first.
             self.left,
             other.inviter_id,
             other.last_event_date,

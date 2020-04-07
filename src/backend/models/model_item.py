@@ -28,34 +28,38 @@ class ModelItem:
     def __setattr__(self, name: str, value) -> None:
         """If this item is in a `Model`, alert it of attribute changes."""
 
-        if name == "parent_model" or self.parent_model is None:
+        if self.parent_model is None:
             super().__setattr__(name, value)
             return
 
         if getattr(self, name) == value:
             return
 
+        if not self.can_serialize_field(name):
+            super().__setattr__(name, value)
+            return
+
         with self.parent_model._write_lock:
             super().__setattr__(name, value)
-
-            if self.parent_model.sync_id:
-                index_then = self.parent_model._sorted_data.index(self)
-
-            self.parent_model._sorted_data.sort()
-
-            if self.parent_model.sync_id:
-                index_now = self.parent_model._sorted_data.index(self)
-
-                ModelItemSet(
-                    self.parent_model.sync_id,
-                    index_then,
-                    index_now,
-                    {name: self.serialize_field(name)},
-                )
+            self.parent_model.__setitem__(  # type: ignore
+                self.id,  # type: ignore
+                self,
+                {name: self.serialize_field(name)},
+            )
 
 
     def __delattr__(self, name: str) -> None:
         raise NotImplementedError()
+
+
+    def can_serialize_field(self, field: str) -> Any:
+        return (
+            not field.startswith("_") and
+            field not in (
+                "parent_model", "serialized",
+                "serialize_field", "can_serialize_field",
+            )
+        )
 
 
     def serialize_field(self, field: str) -> Any:
@@ -71,7 +75,5 @@ class ModelItem:
 
         return {
             name: self.serialize_field(name) for name in dir(self)
-            if not (
-                name.startswith("_") or name in ("parent_model", "serialized")
-            )
+            if self.can_serialize_field(name)
         }

@@ -19,9 +19,9 @@
 
 int main(int argc, char *argv[]) {
     // Define some basic info about the app before creating the QApplication
-    QApplication::setOrganizationName("mirage");
-    QApplication::setApplicationName("mirage");
-    QApplication::setApplicationDisplayName("Mirage");
+    QApplication::setOrganizationName("Qtune);
+    QApplication::setApplicationName("Qtune");
+    QApplication::setApplicationDisplayName("Qtune");
     QApplication::setApplicationVersion("0.4.3");
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
